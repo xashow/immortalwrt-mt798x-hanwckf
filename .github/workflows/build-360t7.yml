@@ -82,6 +82,7 @@ jobs:
         cd openwrt && ./scripts/feeds update -a && ./scripts/feeds install -a
         echo "::endgroup::"
 
+    - name: 应用配置并强制指定 360T7
       run: |
         echo "::group::复制配置文件"
         cp 360T7/360t7.config openwrt/.config
