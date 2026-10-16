@@ -82,7 +82,6 @@ jobs:
         cd openwrt && ./scripts/feeds update -a && ./scripts/feeds install -a
         echo "::endgroup::"
 
-    - name: 应用配置并强制指定 360T7
       run: |
         echo "::group::复制配置文件"
         cp 360T7/360t7.config openwrt/.config
@@ -93,25 +92,26 @@ jobs:
         make defconfig
         echo "::endgroup::"
 
-        echo "::group::删掉所有设备，写入 360T7"
+        echo "::group::删掉所有设备，写入 360T7（旧格式）"
         sed -i '/spim-nor-rfb/d' .config
-        sed -i '/^CONFIG_TARGET_DEVICE_mediatek_mt7981_DEVICE_/d' .config
-        sed -i '/^CONFIG_TARGET_DEVICE_PACKAGES_mediatek_mt7981_DEVICE_/d' .config
+        sed -i '/CONFIG_TARGET_DEVICE_mediatek_mt7981_DEVICE_/d' .config
+        sed -i '/CONFIG_TARGET_DEVICE_PACKAGES_mediatek_mt7981_DEVICE_/d' .config
+        sed -i '/CONFIG_TARGET_mediatek_mt7981_DEVICE_/d' .config
+        sed -i '/CONFIG_TARGET_mediatek_mt7981_DEVICE_PACKAGES_/d' .config
         sed -i '/^CONFIG_TARGET_MULTI_PROFILE/d' .config
-        echo "CONFIG_TARGET_DEVICE_mediatek_mt7981_DEVICE_mt7981-360-t7-108M=y" >> .config
-        echo "CONFIG_TARGET_DEVICE_PACKAGES_mediatek_mt7981_DEVICE_mt7981-360-t7-108M=\"\"" >> .config
+        echo "CONFIG_TARGET_mediatek_mt7981_DEVICE_mt7981-360-t7-108M=y" >> .config
+        echo "CONFIG_TARGET_mediatek_mt7981_DEVICE_PACKAGES_mt7981-360-t7-108M=\"\"" >> .config
         echo "::endgroup::"
 
-        echo "::group::硬门禁：检查最终设备选项"
-        echo "===== .config 里所有 DEVICE_ 行 ====="
-        grep "DEVICE_" .config || echo "无 DEVICE_ 行"
-        echo "===== 检查 360T7 ====="
-        grep -q "^CONFIG_TARGET_DEVICE_mediatek_mt7981_DEVICE_mt7981-360-t7-108M=y" .config \
-          && echo "✅ 360-t7-108M 已选中" \
-          || { echo "❌ 360-t7-108M 未选中，终止"; exit 1; }
+        echo "::group::硬门禁：检查设备选项（旧格式）"
+        grep -q "^CONFIG_TARGET_mediatek_mt7981_DEVICE_mt7981-360-t7-108M=y" .config \
+          && echo "✅ 360-t7-108M 已选中（旧格式）" \
+          || { echo "❌ 360-t7-108M 未选中"; exit 1; }
         grep -q "spim-nor-rfb" .config \
-          && { echo "❌ 出现 RFB 设备行，终止"; exit 1; } \
+          && { echo "❌ 出现 RFB，终止"; exit 1; } \
           || echo "✅ 无 RFB"
+        echo "===== 所有 DEVICE 行 ====="
+        grep "DEVICE" .config || echo "无 DEVICE 行"
         echo "::endgroup::"
 
     - name: SSH 连接（可选）
