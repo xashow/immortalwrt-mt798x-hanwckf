@@ -1,0 +1,107 @@
+# 用 GitHub Actions（Linux 云）编译 360T7 (MT7981) - 108M 固件
+#
+# 原理：
+#   - 本 workflow 和 defconfig/ 种子配置都放在【你自己的 GitHub 仓库】里；
+#   - 触发后：① 检出你自己的仓库（拿到 workflow + 种子配置）→ ② 克隆 Yuzhii 源码到 src/
+#             ③ 套用 360T7-108M 配置 → ④ 云编译 → ⑤ 上传固件产物。
+#
+# 用法：
+#   1) 新建一个 GitHub 仓库（公开/私有都行）；
+#   2) 把本仓库下 360T7-build-setup/ 里的内容推上去：
+#         .github/workflows/build-360t7.yml
+#         defconfig/mt7981-360-t7-108M.config
+#   3) 在仓库 Actions 页 → 选 "Build 360T7-108M" → Run workflow，等约 30–60 分钟；
+#   4) 到产物 Artifacts 下载 mt7981-360-t7-108M，用其中的 sysupgrade.bin 刷入。
+#
+# 也可在 on.schedule 里放开按月的自动编译（见下面注释）。
+name: Build 360T7-108M
+
+on:
+  # 手动触发（推荐：想更新时点一下）
+  workflow_dispatch:
+    inputs:
+      source_repo:
+        description: '要编译的源码仓库'
+        required: false
+        default: 'Yuzhii0718/immortalwrt-mt798x-hanwckf'
+      source_ref:
+        description: '源码分支/标签'
+        required: false
+        default: 'openwrt-21.02'
+
+  # 可选：放开下面的注释即可每月自动编译一次
+  # schedule:
+  #   - cron: '0 0 1 * *'
+
+concurrency:
+  group: build-360t7
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    steps:
+      # 1) 检出你自己的仓库（含 workflow + defconfig 种子配置）
+      - name: Checkout own repo
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      # 2) 克隆 Yuzhii 源码（默认 openwrt-21.02 分支）
+      - name: Clone source
+        run: |
+          REPO="${{ github.event.inputs.source_repo || 'Yuzhii0718/immortalwrt-mt798x-hanwckf' }}"
+          REF="${{ github.event.inputs.source_ref || 'openwrt-21.02' }}"
+          git clone --depth 1 -b "$REF" "https://github.com/${REPO}.git" src
+          echo "cloned ${REPO}@${REF}"
+
+      # 3) 加 swap（避免编译内存不足）
+      - name: Add swap
+        run: |
+          sudo fallocate -l 8G /swapfile
+          sudo chmod 600 /swapfile
+          sudo mkswap /swapfile
+          sudo swapon /swapfile
+
+      # 4) 安装 OpenWrt/ImmortalWrt 构建依赖
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y \
+            build-essential bison flex g++ gawk gcc-multilib g++-multilib \
+            gettext git libncurses5-dev libssl-dev python3 python3-pip \
+            python3-ply python3-distutils python3-setuptools rsync unzip wget \
+            file perl patch qemu-utils subversion libxml2-dev libelf-dev \
+            zlib1g-dev libgmp3-dev libmpc-dev libmpfr-dev uuid-dev \
+            gperf quilt pkg-config golang xz-utils zstd time \
+            dosfstools mtools parted fdisk e2fsprogs \
+            asciidoc libxml2-utils libcap-dev
+
+      # 5) 初始化 feeds
+      - name: Init feeds
+        run: |
+          cd src
+          ./scripts/feeds update -a
+          ./scripts/feeds install -a
+
+      # 6) 套用 360T7-108M 种子配置（文件来自你仓库根目录）
+      - name: Apply config
+        run: |
+          cd src
+          cp ../defconfig/mt7981-360-t7-108M.config .config
+          make defconfig
+
+      # 7) 编译（较久，约 30–60 分钟）
+      - name: Build firmware
+        run: |
+          cd src
+          make -j$(nproc) V=s
+
+      # 8) 上传固件
+      - name: Upload firmware
+        uses: actions/upload-artifact@v4
+        with:
+          name: mt7981-360-t7-108M
+          path: src/bin/targets/mediatek/mt7981/
+          retention-days: 30
