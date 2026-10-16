@@ -81,10 +81,31 @@ jobs:
         cd openwrt && ./scripts/feeds update -a && ./scripts/feeds install -a
         echo "::endgroup::"
 
-    - name: 应用配置文件
+    - name: 应用配置并强制指定 360T7
       run: |
         echo "::group::复制配置文件"
         cp 360T7/360t7.config openwrt/.config
+        echo "::endgroup::"
+
+        echo "::group::第一次 make defconfig（归一化）"
+        cd openwrt
+        make defconfig
+        echo "::endgroup::"
+
+        echo "::group::删除所有设备选项，只保留 360T7"
+        sed -i '/^CONFIG_TARGET_DEVICE_mediatek_mt7981_DEVICE_/d' .config
+        sed -i '/^CONFIG_TARGET_DEVICE_PACKAGES_mediatek_mt7981_DEVICE_/d' .config
+        sed -i '/^CONFIG_TARGET_MULTI_PROFILE/d' .config
+        echo "CONFIG_TARGET_DEVICE_mediatek_mt7981_DEVICE_mt7981-360-t7-108M=y" >> .config
+        echo "CONFIG_TARGET_DEVICE_PACKAGES_mediatek_mt7981_DEVICE_mt7981-360-t7-108M=\"\"" >> .config
+        echo "::endgroup::"
+
+        echo "::group::第二次 make defconfig（归一化）"
+        make defconfig
+        echo "::endgroup::"
+
+        echo "::group::检查最终设备选项"
+        grep -E "360-t7-108M|spim-nor-rfb|TARGET_MULTI_PROFILE" .config || echo "!!! 没有匹配到任何设备选项 !!!"
         echo "::endgroup::"
 
     - name: SSH 连接（可选）
@@ -96,9 +117,6 @@ jobs:
     - name: 下载源码包
       working-directory: /workdir/openwrt
       run: |
-        echo "::group::make defconfig"
-        make defconfig
-        echo "::endgroup::"
         echo "::group::make download"
         make download -j8
         find dl -size -1024c -exec rm -f {} \;
