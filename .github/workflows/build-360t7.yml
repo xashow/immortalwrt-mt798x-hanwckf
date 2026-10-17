@@ -58,13 +58,20 @@ jobs:
           git clone --depth 1 -b "$REF" "https://github.com/${REPO}.git" src
           echo "cloned ${REPO}@${REF}"
 
-      # 3) 加 swap（避免编译内存不足）
+      # 3) 加 swap（避免编译内存不足；runner 已自带 swap 则跳过，否则用 /swapfile1 避免 Text file busy 冲突）
       - name: Add swap
         run: |
-          sudo fallocate -l 8G /swapfile
-          sudo chmod 600 /swapfile
-          sudo mkswap /swapfile
-          sudo swapon /swapfile
+          if [ -n "$(swapon --show --noheadings)" ]; then
+            echo "runner 已有 swap，跳过新增"
+            swapon --show
+          else
+            sudo fallocate -l 8G /swapfile1 || sudo dd if=/dev/zero of=/swapfile1 bs=1M count=8192 status=none
+            sudo chmod 600 /swapfile1
+            sudo mkswap /swapfile1
+            sudo swapon /swapfile1
+            echo "已新增 /swapfile1"
+          fi
+
 
       # 4) 安装 OpenWrt/ImmortalWrt 构建依赖
       - name: Install build dependencies
