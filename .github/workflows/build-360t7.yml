@@ -39,7 +39,9 @@ concurrency:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    # 固定 Ubuntu 22.04：OpenWrt/ImmortalWrt 21.02 依赖 libncurses5-dev / python3-distutils，
+    # 这两个包在 ubuntu-latest(24.04) 已移除会导致依赖安装失败；22.04 可稳定构建。
+    runs-on: ubuntu-22.04
     timeout-minutes: 300
     steps:
       # 1) 检出你自己的仓库（含 workflow + defconfig 种子配置）
